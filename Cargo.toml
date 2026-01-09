@@ -12,10 +12,10 @@ description = "fast substitution of variables in polynomials"
 repository = "https://github.com/cucapra/polysub"
 license = "MIT"
 keywords = ["polynomial", "monomial", "cas", "verification"]
-readme = "Readme.md"
+readme = "README.md"
 # the integration tests are excluded because the benchmark files
 # are prohibitively large
-include = ["Cargo.toml", "LICENSE", "Readme.md", "src/"]
+include = ["Cargo.toml", "LICENSE", "README.md", "src/"]
 
 [dependencies]
 # for number ingestion and output
