@@ -48,3 +48,11 @@ Konrad, Alexander, and Christoph Scholl.
 "FastPoly: An Efficient Polynomial Package for the Verification of Integer Arithmetic Circuits."
 In CONFERENCE ON FORMAL METHODS IN COMPUTER-AIDED DESIGN–FMCAD 2025, p. 139. 2025.
 ```
+
+## Impact of Coefficient Implementation
+
+`polysub` makes heavy use of the fact, that all benchmarks use modulo arithmetic for their coefficients.
+The `Coef` trait makes it simple to switch out the coefficient implementation. We performed all benchmarks above
+with a 512-bit coefficient implementation. However, we can use smaller coefficient implementations for the less
+wide benchmarks. By switching the `DefaultCoef` in `examples/bench.rs` to `u64`, we improve the runtime on `8-bit sp-ar-ks`
+to 164ms, for a 30% improvement. This shows that -- unfortunately -- the coefficient size is not super important for the performance.
