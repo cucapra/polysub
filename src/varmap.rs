@@ -1,13 +1,18 @@
 use crate::{Term, VarIndex};
 use std::num::NonZeroU32;
 
-/// Makes it easy to look up all terms for a given variable.
+/// Maintains one list for each variable with the terms that contain it.
+/// This data structure is our version of the `refList` suggested by
+/// Alexander Konrad and Christoph Scholl in their FastPoly paper (FMCAD'25).
 #[derive(Debug)]
-pub struct TermDb {
+pub struct VarMap {
+    /// Keep track of the list entries that refer to a given term.
     terms: Vec<TermMeta>,
+    /// First entry of the list for a given VarIndex.
     heads: Vec<Option<EntryId>>,
+    /// List entries.
     entries: Vec<Entry>,
-    /// keeps track of freed entries
+    /// Keeps track of freed entries.
     free: Vec<EntryId>,
 }
 
@@ -53,7 +58,7 @@ impl From<EntryId> for usize {
     }
 }
 
-impl TermDb {
+impl VarMap {
     pub fn new(max_var_index: u32) -> Self {
         Self {
             terms: vec![],
@@ -155,7 +160,7 @@ impl TermDb {
 }
 
 struct TermIter<'a> {
-    lookup: &'a TermDb,
+    lookup: &'a VarMap,
     entry: Option<EntryId>,
 }
 

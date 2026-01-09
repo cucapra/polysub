@@ -1,17 +1,23 @@
 use crate::coef::{Coef, Mod};
-use crate::db::{TermDb, TermId};
+use crate::varmap::{TermId, VarMap};
 use indexmap::IndexMap;
 use rustc_hash::FxBuildHasher;
 use std::cmp::Ordering;
 use std::fmt::{Display, Formatter};
 use std::hash::{Hash, Hasher};
 
+/// Represents a polynomial.
+/// Contains additional data structures to allow for fast variable substitution.
 #[derive(Debug)]
 pub struct Polynom<C: Coef> {
+    /// The module factor.
     m: Mod,
+    /// Ordered map from term to coefficient.
     monoms: IndexMap<Term, C, FxBuildHasher>,
+    /// List of all terms with a zero coefficient.
     zero_terms: Vec<TermId>,
-    var_map: TermDb,
+    /// Fast access to the terms for each variable. Needs to be kept in sync with the monoms map.
+    var_map: VarMap,
 }
 
 impl<C: Coef> Polynom<C> {
@@ -20,7 +26,7 @@ impl<C: Coef> Polynom<C> {
             m,
             monoms: IndexMap::default(),
             zero_terms: vec![],
-            var_map: TermDb::new(max_var_index),
+            var_map: VarMap::new(max_var_index),
         }
     }
 
