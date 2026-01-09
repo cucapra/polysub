@@ -22,6 +22,10 @@ pub struct Polynom<C: Coef> {
     zero_terms: Vec<TermId>,
     /// Fast access to the terms for each variable. Needs to be kept in sync with the monoms map.
     var_map: VarMap,
+    /// Used in `replace_var`. Kept here in order to be able to re-use the allocation.
+    todo: Vec<TermId>,
+    /// Used in `replace_var`. Kept here in order to be able to re-use the allocation.
+    new_terms: Vec<(Term, C)>,
 }
 
 impl<C: Coef> Polynom<C> {
@@ -31,6 +35,8 @@ impl<C: Coef> Polynom<C> {
             monoms: IndexMap::default(),
             zero_terms: vec![],
             var_map: VarMap::new(),
+            todo: vec![],
+            new_terms: vec![],
         }
     }
 
@@ -128,27 +134,35 @@ impl<C: Coef> Polynom<C> {
     }
 
     pub fn replace_var(&mut self, target: VarIndex, mons: &[(C, Term)]) {
+        debug_assert!(self.todo.is_empty());
+        debug_assert!(self.new_terms.is_empty());
+
+        // Re-use the memory for these two vectors. We move them to local variables in order to
+        // avoid borrow checker complaints.
+        let mut todo = std::mem::take(&mut self.todo);
+        let mut new_terms = std::mem::take(&mut self.new_terms);
+
         // collect all terms that we are interested in
-        let todo: Vec<_> = self.var_map.terms_for_var(target).collect();
+        for term in self.var_map.terms_for_var(target) {
+            todo.push(term);
+        }
 
         // generate new terms
-        let mut new_terms: Vec<_> = todo
-            .iter()
-            .flat_map(|&old_term_id| {
-                let (old_term, old_coef) = self.monoms.get_index(old_term_id.into()).unwrap();
-                let m = self.m;
-                mons.iter().map(move |(new_coef, new_term)| {
-                    debug_assert!(!new_coef.is_zero());
-                    let mut combined_coef = old_coef.clone();
-                    combined_coef.mul_assign(new_coef, m);
-                    (old_term.replace_var(target, new_term), combined_coef)
-                })
-            })
-            .collect();
+        for &old_term_id in todo.iter() {
+            let (old_term, old_coef) = self.monoms.get_index(old_term_id.into()).unwrap();
+            let m = self.m;
+            for (new_coef, new_term) in mons.iter() {
+                debug_assert!(!new_coef.is_zero());
+                let mut combined_coef = old_coef.clone();
+                combined_coef.mul_assign(new_coef, m);
+                let combined_term = old_term.replace_var(target, new_term);
+                new_terms.push((combined_term, combined_coef));
+            }
+        }
 
         // remove old terms since they have been replaced
         // note: this can only happen after generating the new terms
-        for old_term_id in todo.into_iter() {
+        for old_term_id in todo.drain(..) {
             let old_term_index: usize = old_term_id.into();
             // remove from variable lookup map
             self.var_map.remove_term(
@@ -164,7 +178,7 @@ impl<C: Coef> Polynom<C> {
         new_terms.sort_by(|(t1, _), (t2, _)| t1.cmp(t2));
 
         // apply new terms
-        let mut new_term_iter = new_terms.into_iter();
+        let mut new_term_iter = new_terms.drain(..);
         let (mut term, mut coef) = new_term_iter.next().unwrap();
         for (mut next_term, mut next_coef) in new_term_iter {
             if next_term != term {
@@ -179,6 +193,12 @@ impl<C: Coef> Polynom<C> {
         }
         // handle final term
         self.add_monom(term, coef);
+
+        // swap back
+        std::mem::swap(&mut self.todo, &mut todo);
+        std::mem::swap(&mut self.new_terms, &mut new_terms);
+        debug_assert!(self.todo.is_empty(), "should have been drained");
+        debug_assert!(self.new_terms.is_empty(), "should have been drained");
     }
 }
 
