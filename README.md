@@ -1,3 +1,8 @@
+[![Crates.io Version](https://img.shields.io/crates/v/polysub)](https://crates.io/crates/polysub)
+[![docs.rs](https://img.shields.io/docsrs/polysub)](https://docs.rs/polysub)
+[![GitHub License](https://img.shields.io/github/license/cucapra/polysub)](LICENSE)
+
+
 # polysub
 
 A library for fast variable substitution for polynomials.
