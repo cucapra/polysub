@@ -1,3 +1,7 @@
+// Copyright 2025-2026 Cornell University
+// released under MIT license
+// author: Kevin Laeufer <laeufer@cornell.edu>
+
 //! Coefficient Library
 
 use num_bigint::{BigInt, BigUint, Sign};

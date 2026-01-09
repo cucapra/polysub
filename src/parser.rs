@@ -1,3 +1,7 @@
+// Copyright 2025-2026 Cornell University
+// released under MIT license
+// author: Kevin Laeufer <laeufer@cornell.edu>
+
 use crate::poly::VarIndex;
 use num_bigint::BigInt;
 use num_traits::Num;
