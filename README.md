@@ -25,7 +25,10 @@ We used the benchmarks from the FastPoly paper, Table 1.
 |   8-bit sp-ar-ks |     652 |         80 |    0.212s |   0.531s |   54,473 |
 
 **Note**: the _max size_ is different from what is reported in the FMCAD'25 paper.
-We report the number calculated by both, the version of FastPoly we benchmarked and our own `polysub`. 
+We report the number calculated by both, the version of FastPoly we benchmarked and our own `polysub`.
+
+**Note**: the numbers for FastPoly are about 10x better than what was reported in the paper. This might be mostly due
+to using a much newer CPU. The Intel Xeon CPU E5-2643 used in the original paper was released in 2012.
 
 
 ### Benchmarking Details
