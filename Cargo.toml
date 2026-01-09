@@ -15,7 +15,7 @@ keywords = ["polynomial", "monomial", "cas", "verification"]
 readme = "README.md"
 # the integration tests are excluded because the benchmark files
 # are prohibitively large
-include = ["Cargo.toml", "LICENSE", "README.md", "src/"]
+include = ["Cargo.toml", "LICENSE", "README.md", "src/", "examples/"]
 
 [dependencies]
 # for number ingestion and output
@@ -27,6 +27,7 @@ indexmap = "2.13"
 
 [dev-dependencies]
 clap =  { version = "4.*", features = ["derive"] }
+regex = "1.12"
 
 [profile.release]
 debug = "line-tables-only"
