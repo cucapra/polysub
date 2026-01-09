@@ -24,7 +24,8 @@ jobs:
     - name: Build
       run: cargo build --verbose
     - name: Run tests (Debug)
-      run: cargo test --verbose
+      # skip large tests in debug mode
+      run: cargo test --verbose -- --skip test_b04 --skip test_b05 --skip test_b09 --skip test_b10
     - name: Run tests (Release)
       run: cargo test --release --verbose
 
