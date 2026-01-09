@@ -25,25 +25,21 @@ pub struct Polynom<C: Coef> {
 }
 
 impl<C: Coef> Polynom<C> {
-    pub fn new(max_var_index: u32, m: Mod) -> Self {
+    pub fn new(m: Mod) -> Self {
         Self {
             m,
             monoms: IndexMap::default(),
             zero_terms: vec![],
-            var_map: VarMap::new(max_var_index),
+            var_map: VarMap::new(),
         }
     }
 
-    pub fn with_max_mod(max_var_index: u32) -> Self {
-        Self::new(max_var_index, C::MAX_MOD)
+    pub fn with_max_mod() -> Self {
+        Self::new(C::MAX_MOD)
     }
 
-    pub fn from_monoms(
-        max_var_index: u32,
-        m: Mod,
-        monoms: impl Iterator<Item = (C, Term)>,
-    ) -> Self {
-        let mut p = Self::new(max_var_index, m);
+    pub fn from_monoms(m: Mod, monoms: impl Iterator<Item = (C, Term)>) -> Self {
+        let mut p = Self::new(m);
         for (coef, m) in monoms {
             p.add_monom(m, coef);
         }
@@ -402,7 +398,6 @@ mod tests {
     fn test_poly() {
         let m = ArrayCoef::<1>::MAX_MOD;
         let p = Polynom::from_monoms(
-            128,
             m,
             vec![(ArrayCoef::<1>::from_i64(1, m), vec![].into())].into_iter(),
         );
@@ -414,7 +409,6 @@ mod tests {
         // let's start with just the monomial that will be replaced: [2*x2818]
         let m = Mod::from_bits(32);
         let mut p = Polynom::from_monoms(
-            3000,
             m,
             vec![(ArrayCoef::<1>::from_i64(2, m), vec![2818.into()].into())].into_iter(),
         );

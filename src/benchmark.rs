@@ -17,7 +17,6 @@ pub fn exec_benchmark<C: Coef + Display>(
 ) -> (Polynom<C>, usize) {
     let mut line_count = 0u32;
     let mut max_poly_size = 0;
-    let mut max_var_index = 0u32;
     let mut poly: Option<Polynom<C>> = None;
     let mut m = C::MAX_MOD;
 
@@ -29,7 +28,8 @@ pub fn exec_benchmark<C: Coef + Display>(
         }
         match line_count {
             0 => {
-                max_var_index = line.parse::<u32>().unwrap();
+                // we are skipping the max var index
+                let _max_var_index = line.parse::<u32>().unwrap();
             }
             1 => {
                 let coef = BigUint::from_str_radix(line, 10).unwrap();
@@ -39,7 +39,6 @@ pub fn exec_benchmark<C: Coef + Display>(
             }
             2 => {
                 let p = Polynom::from_monoms(
-                    max_var_index,
                     m,
                     parse_poly(line.as_bytes()).map(|(c, t)| (Coef::from_big(&c, m), t.into())),
                 );

@@ -63,10 +63,10 @@ impl From<EntryId> for usize {
 }
 
 impl VarMap {
-    pub fn new(max_var_index: u32) -> Self {
+    pub fn new() -> Self {
         Self {
             terms: vec![],
-            heads: vec![None; max_var_index as usize + 1],
+            heads: vec![],
             entries: vec![],
             free: vec![],
         }
@@ -132,6 +132,11 @@ impl VarMap {
     /// the id of the new entry.
     fn add_list_entry(&mut self, var_id: VarIndex, term: TermId) -> EntryId {
         let var_index: usize = var_id.into();
+        // make sure there is enough space in our `heads` vector
+        // this is necessary because we do not know the biggest VarIndex ahead of time
+        if var_index >= self.heads.len() {
+            self.heads.resize(var_index + 1, None);
+        }
         // we always insert at the front of the list
         let prev = None;
         let next = self.heads[var_index];
