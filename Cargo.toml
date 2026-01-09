@@ -1,0 +1,28 @@
+# Copyright 2025-2026 Cornell University
+# released under MIT license
+# author: Kevin Laeufer <laeufer@cornell.edu>
+
+[package]
+name = "polysub"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.90.0"
+authors = ["Kevin Laeufer <laeufer@cornell.edu>"]
+description = "fast substitution of variables in polynomials"
+repository = "https://github.com/cucapra/polysub"
+license = "MIT"
+keywords = ["polynomial", "monomial", "cas", "verification"]
+
+[dependencies]
+# for number ingestion and output
+num-bigint = { version = "0.4", default-features = false }
+num-traits = "0.2"
+# hash map
+rustc-hash = "2.1"
+indexmap = "2.13"
+
+[dev-dependencies]
+clap =  { version = "4.*", features = ["derive"] }
+
+[profile.release]
+debug = "line-tables-only"

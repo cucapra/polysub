@@ -1,0 +1,422 @@
+use crate::coef::{Coef, Mod};
+use crate::db::{TermDb, TermId};
+use indexmap::IndexMap;
+use rustc_hash::FxBuildHasher;
+use std::cmp::Ordering;
+use std::fmt::{Display, Formatter};
+use std::hash::{Hash, Hasher};
+
+#[derive(Debug)]
+pub struct Polynom<C: Coef> {
+    m: Mod,
+    monoms: IndexMap<Term, C, FxBuildHasher>,
+    zero_terms: Vec<TermId>,
+    var_map: TermDb,
+}
+
+impl<C: Coef> Polynom<C> {
+    pub fn new(max_var_index: u32, m: Mod) -> Self {
+        Self {
+            m,
+            monoms: IndexMap::default(),
+            zero_terms: vec![],
+            var_map: TermDb::new(max_var_index),
+        }
+    }
+
+    pub fn with_max_mod(max_var_index: u32) -> Self {
+        Self::new(max_var_index, C::MAX_MOD)
+    }
+
+    pub fn from_monoms(
+        max_var_index: u32,
+        m: Mod,
+        monoms: impl Iterator<Item = (C, Term)>,
+    ) -> Self {
+        let mut p = Self::new(max_var_index, m);
+        for (coef, m) in monoms {
+            p.add_monom(m, coef);
+        }
+        p
+    }
+
+    pub fn size(&self) -> usize {
+        let size = self.monoms.len() - self.zero_terms.len();
+        debug_assert_eq!(self.monoms.values().filter(|c| !c.is_zero()).count(), size);
+        size
+    }
+
+    pub fn is_zero(&self) -> bool {
+        self.size() == 0
+    }
+
+    pub fn get_mod(&self) -> Mod {
+        self.m
+    }
+
+    fn sorted_monom_vec(&self) -> Vec<(C, Term)> {
+        let mut r: Vec<_> = self
+            .monoms
+            .iter()
+            .filter(|(_, c)| !c.is_zero())
+            .map(|(value, key)| (key.clone(), value.clone()))
+            .collect();
+        r.sort_unstable_by(|(_, a), (_, b)| a.cmp(b));
+        r
+    }
+
+    fn add_monom(&mut self, term: Term, coef: C) {
+        // nothing to do if the coefficient is already zero
+        if coef.is_zero() {
+            return;
+        }
+
+        // do we already have a monom with the same term?
+        if let Some((term_index, _, old_coef)) = self.monoms.get_full_mut(&term) {
+            // if the old coefficient was zero, we need to remove the term index from the free list
+            // and add the term back to the variable map
+            if old_coef.is_zero() {
+                let term_id: TermId = term_index.into();
+                let pos = self.zero_terms.iter()
+                    .position(|&t| t == term_id)
+                    .expect("since the coefficient is zero, this term should be part of the zero_terms list!");
+                // this changes the order, but that does not matter
+                self.zero_terms.swap_remove(pos);
+                self.var_map.add_term(&term, term_id);
+            }
+
+            // add the new coefficient to the old one
+            old_coef.add_assign(&coef, self.m);
+
+            // if the coefficients add up to zero, we need to remove the monom
+            if old_coef.is_zero() {
+                let term_id: TermId = term_index.into();
+                // remove from the var map
+                self.var_map.remove_term(&term, term_id);
+                // remember the id so that the slot can get re-used
+                self.zero_terms.push(term_id);
+                // note: the actual term stays in the hash map in order to keep TermIds stable
+            }
+            // if the coefficient isn't zero, there is nothing more to do
+        } else {
+            // this is a new term, and we need to allocate a term id for it
+            if let Some(term_id) = self.zero_terms.pop() {
+                // insert term into var map
+                self.var_map.add_term(&term, term_id);
+                // replace the old term that was using this id
+                self.monoms.replace_index(term_id.into(), term).unwrap();
+                // store the new coefficient
+                self.monoms[usize::from(term_id)] = coef;
+            } else {
+                // allocate space in the hash map
+                let (term_index, old_coef) = self.monoms.insert_full(term, coef);
+                debug_assert!(
+                    old_coef.is_none(),
+                    "There should never exist an equivalent term already."
+                );
+                // insert into var map
+                let term = self.monoms.get_index(term_index).unwrap().0;
+                self.var_map.add_term(term, term_index.into());
+            }
+        }
+    }
+
+    pub fn replace_var(&mut self, target: VarIndex, mons: &[(C, Term)]) {
+        // collect all terms that we are interested in
+        let todo: Vec<_> = self.var_map.terms_for_var(target).collect();
+
+        // generate new terms
+        let mut new_terms: Vec<_> = todo
+            .iter()
+            .flat_map(|&old_term_id| {
+                let (old_term, old_coef) = self.monoms.get_index(old_term_id.into()).unwrap();
+                let m = self.m;
+                mons.iter().map(move |(new_coef, new_term)| {
+                    debug_assert!(!new_coef.is_zero());
+                    let mut combined_coef = old_coef.clone();
+                    combined_coef.mul_assign(new_coef, m);
+                    (old_term.replace_var(target, new_term), combined_coef)
+                })
+            })
+            .collect();
+
+        // remove old terms since they have been replaced
+        // note: this can only happen after generating the new terms
+        for old_term_id in todo.into_iter() {
+            let old_term_index: usize = old_term_id.into();
+            // remove from variable lookup map
+            self.var_map.remove_term(
+                self.monoms.get_index(old_term_index).unwrap().0,
+                old_term_id,
+            );
+            // zero out old term
+            self.monoms[old_term_index].assign_zero();
+            self.zero_terms.push(old_term_id);
+        }
+
+        // sort new terms
+        new_terms.sort_by(|(t1, _), (t2, _)| t1.cmp(t2));
+
+        // apply new terms
+        let mut new_term_iter = new_terms.into_iter();
+        let (mut term, mut coef) = new_term_iter.next().unwrap();
+        for (mut next_term, mut next_coef) in new_term_iter {
+            if next_term != term {
+                // update to new term
+                std::mem::swap(&mut term, &mut next_term);
+                std::mem::swap(&mut coef, &mut next_coef);
+                // next_term now contains the _old_ term and next_coef the _old_ coef
+                self.add_monom(next_term, next_coef);
+            } else {
+                coef.add_assign(&next_coef, self.m);
+            }
+        }
+        // handle final term
+        self.add_monom(term, coef);
+    }
+}
+
+impl<C: Coef + Display> Display for Polynom<C> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        if self.is_zero() {
+            write!(f, "0 (empty polynomial)")
+        } else {
+            let monoms = self.sorted_monom_vec();
+            for (ii, (coef, term)) in monoms.iter().enumerate() {
+                let is_last = ii == monoms.len() - 1;
+                write!(f, "[{coef}*{term}]")?;
+                if !is_last {
+                    write!(f, " + ")?;
+                }
+            }
+            Ok(())
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, Hash, Eq, PartialEq, Ord, PartialOrd)]
+pub struct VarIndex(u32);
+
+impl Display for VarIndex {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "x{}", self.0)
+    }
+}
+
+impl From<u32> for VarIndex {
+    fn from(v: u32) -> Self {
+        Self(v)
+    }
+}
+
+impl From<VarIndex> for u32 {
+    fn from(value: VarIndex) -> Self {
+        value.0
+    }
+}
+
+impl From<VarIndex> for usize {
+    fn from(value: VarIndex) -> Self {
+        value.0 as usize
+    }
+}
+
+#[derive(Debug, Clone, Eq)]
+pub struct Term {
+    vars: Vec<VarIndex>,
+    // sum over all variables
+    sum: u32,
+}
+
+impl Term {
+    fn new(mut vars: Vec<VarIndex>) -> Self {
+        vars.sort();
+        let sum = vars.iter().map(|v| v.0).sum();
+        Self { vars, sum }
+    }
+
+    fn replace_var(&self, target: VarIndex, other: &Term) -> Self {
+        debug_assert!(!self.vars.is_empty());
+
+        let mut a_iter = self.vars.iter();
+        let mut b_iter = other.vars.iter();
+        let mut a_next = a_iter.next();
+        let mut b_next = b_iter.next();
+
+        let mut vars = Vec::with_capacity(self.vars.len() + other.vars.len() - 1);
+        let mut sum = 0;
+        let mut add_var = |value: VarIndex| {
+            if vars.last().map(|l| *l < value).unwrap_or(true) {
+                sum += value.0;
+                vars.push(value);
+            }
+        };
+        while a_next.is_some() || b_next.is_some() {
+            match (a_next.cloned(), b_next.cloned()) {
+                (Some(a), None) => {
+                    if a != target {
+                        add_var(a);
+                    }
+                    a_next = a_iter.next();
+                }
+                (None, Some(b)) => {
+                    add_var(b);
+                    b_next = b_iter.next();
+                }
+                (Some(a), Some(b)) => match a.cmp(&b) {
+                    Ordering::Less => {
+                        add_var(a);
+                        a_next = a_iter.next();
+                    }
+                    Ordering::Equal => {
+                        add_var(a);
+                        a_next = a_iter.next();
+                        b_next = b_iter.next();
+                    }
+                    Ordering::Greater => {
+                        add_var(b);
+                        b_next = b_iter.next();
+                    }
+                },
+                (None, None) => unreachable!("loop should have terminated"),
+            }
+        }
+
+        debug_assert!(
+            vars.as_slice().windows(2).all(|w| w[0] < w[1]),
+            "{:?}",
+            vars
+        );
+
+        // note: do not call `new` here to avoid unnecessary sort and re-calculation of sum.
+        Self { vars, sum }
+    }
+
+    #[inline]
+    fn sum(&self) -> u32 {
+        self.sum
+    }
+
+    #[inline]
+    fn var_count(&self) -> usize {
+        self.vars.len()
+    }
+
+    pub(crate) fn vars(&self) -> impl Iterator<Item = &VarIndex> {
+        self.vars.iter()
+    }
+}
+
+impl PartialEq<Self> for Term {
+    fn eq(&self, other: &Self) -> bool {
+        self.sum() == other.sum() && self.vars == other.vars
+    }
+}
+
+impl Hash for Term {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        // `sum` is entirely derived from the `vars`, so no need to hash it
+        self.vars.hash(state)
+    }
+}
+
+impl Ord for Term {
+    fn cmp(&self, other: &Self) -> Ordering {
+        let self_sum = self.sum();
+        let other_sum = other.sum();
+        if self_sum != other_sum {
+            return self_sum.cmp(&other_sum);
+        }
+        if self.var_count() != other.var_count() {
+            return self.var_count().cmp(&other.var_count());
+        }
+        for (s, o) in self.vars.iter().zip(other.vars.iter()) {
+            if s != o {
+                return s.cmp(o);
+            }
+        }
+        Ordering::Equal
+    }
+}
+
+impl PartialOrd<Self> for Term {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl From<Vec<VarIndex>> for Term {
+    fn from(v: Vec<VarIndex>) -> Self {
+        Self::new(v)
+    }
+}
+
+impl From<VarIndex> for Term {
+    fn from(v: VarIndex) -> Self {
+        Self::new(vec![v])
+    }
+}
+
+impl Display for Term {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        for (ii, v) in self.vars.iter().enumerate() {
+            let is_first = ii == 0;
+            if is_first {
+                write!(f, "{v}")?;
+            } else {
+                write!(f, "*{v}")?;
+            }
+        }
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::coef::ArrayCoef;
+
+    #[test]
+    fn test_term() {
+        // normalize order when creating term
+        let t1 = Term::new(vec![1.into(), 2.into()]);
+        assert_eq!(format!("{t1}"), "x1*x2");
+        let t2 = Term::new(vec![2.into(), 1.into()]);
+        assert_eq!(format!("{t2}"), "x1*x2");
+        assert_eq!(t1, t2);
+        let one = Term::new(vec![]);
+        assert_eq!(format!("{one}"), "");
+    }
+
+    #[test]
+    fn test_poly() {
+        let m = ArrayCoef::<1>::MAX_MOD;
+        let p = Polynom::from_monoms(
+            128,
+            m,
+            vec![(ArrayCoef::<1>::from_i64(1, m), vec![].into())].into_iter(),
+        );
+        assert_eq!(format!("{p}"), "[1*]");
+    }
+
+    #[test]
+    fn test_substitution() {
+        // let's start with just the monomial that will be replaced: [2*x2818]
+        let m = Mod::from_bits(32);
+        let mut p = Polynom::from_monoms(
+            3000,
+            m,
+            vec![(ArrayCoef::<1>::from_i64(2, m), vec![2818.into()].into())].into_iter(),
+        );
+        assert_eq!(format!("{p}"), "[2*x2818]");
+
+        // small example from benchmark 01: -1*x2818-1*x38+1
+        let mons = vec![
+            (Coef::from_i64(-1, m), vec![38.into()].into()),
+            (Coef::from_i64(1, m), vec![].into()),
+        ];
+        p.replace_var(2818.into(), &mons);
+        assert_eq!(p.size(), 2);
+        assert_eq!(format!("{p}"), "[2*] + [4294967294*x38]");
+    }
+}
