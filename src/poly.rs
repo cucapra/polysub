@@ -61,6 +61,15 @@ impl<C: Coef> Polynom<C> {
         self.m
     }
 
+    /// Currently only allows for increating the mod coefficient!
+    pub fn change_mod(&mut self, new_m: Mod) {
+        if new_m.bits() > self.m.bits() {
+            self.m = new_m;
+        } else if new_m.bits() < self.m.bits() {
+            todo!("update all coefficients to make sure they obey the mod!")
+        }
+    }
+
     fn sorted_monom_vec(&self) -> Vec<(C, Term)> {
         let mut r: Vec<_> = self
             .monoms
