@@ -181,6 +181,17 @@ impl<C: Coef> Polynom<C> {
         // handle final term
         self.add_monom(term, coef);
     }
+
+    /// The sum (modulo M) across all coefficient of the polynomial.
+    /// Since we are in the digital domain this is the maximum value the polynomial could ever
+    /// evaluate to.
+    pub fn coef_sum(&self) -> C {
+        let mut r = C::zero();
+        for (_, c) in self.monoms.iter() {
+            r.add_assign(c, self.m);
+        }
+        r
+    }
 }
 
 /// Algebra routines built on core functionality.
@@ -508,6 +519,14 @@ mod tests {
         assert_eq!(
             format!("{r}"),
             "[252*x1] + [252*x2] + [8*x1*x2] + [4*x1*x3] + [252*x2*x3]"
+        );
+    }
+
+    #[test]
+    fn test_coef_sum() {
+        assert_eq!(
+            Polynom::<u64>::from_str("2*x1 - 2*x2").unwrap().coef_sum(),
+            0
         );
     }
 }

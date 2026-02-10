@@ -81,6 +81,7 @@ impl Mod {
 pub trait Coef: Clone {
     fn from_big(value: &BigInt, m: Mod) -> Self;
     fn from_i64(v: i64, m: Mod) -> Self;
+    fn pow2(e: u32, m: Mod) -> Self;
     fn zero() -> Self;
     fn is_zero(&self) -> bool;
     fn assign_zero(&mut self);
@@ -223,6 +224,15 @@ impl<const W: usize> Coef for ArrayCoef<W> {
         Self::from_u64(v as u64, m)
     }
 
+    fn pow2(e: u32, m: Mod) -> Self {
+        let mut r = Self::zero();
+        if m.bits() > e {
+            let word_ii = e / Word::BITS;
+            r.words[word_ii as usize] = (1 as Word) << (e % Word::BITS);
+        }
+        r
+    }
+
     #[inline]
     fn zero() -> Self {
         Self { words: [0; W] }
@@ -271,6 +281,11 @@ impl Coef for Word {
         v as Word & m.msb_mask
     }
 
+    fn pow2(e: u32, m: Mod) -> Self {
+        debug_assert!(m.words == 1);
+        if e < m.bits() { (1 as Word) << e } else { 0 }
+    }
+
     fn zero() -> Self {
         0
     }
@@ -314,6 +329,15 @@ impl Coef for DoubleWord {
 
     fn from_i64(v: i64, m: Mod) -> Self {
         mask_double_word(v as DoubleWord, m)
+    }
+
+    fn pow2(e: u32, m: Mod) -> Self {
+        debug_assert!(m.words <= 2);
+        if e < m.bits() {
+            (1 as DoubleWord) << e
+        } else {
+            0
+        }
     }
 
     fn zero() -> Self {
