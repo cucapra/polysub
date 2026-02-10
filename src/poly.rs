@@ -384,7 +384,7 @@ impl Term {
         self.vars.len()
     }
 
-    pub(crate) fn vars(&self) -> impl Iterator<Item = &VarIndex> {
+    pub fn vars(&self) -> impl Iterator<Item = &VarIndex> {
         self.vars.iter()
     }
 }
