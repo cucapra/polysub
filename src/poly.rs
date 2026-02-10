@@ -70,7 +70,7 @@ impl<C: Coef> Polynom<C> {
         }
     }
 
-    fn sorted_monom_vec(&self) -> Vec<(C, Term)> {
+    pub fn sorted_monom_vec(&self) -> Vec<(C, Term)> {
         let mut r: Vec<_> = self
             .monoms
             .iter()
