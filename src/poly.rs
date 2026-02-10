@@ -13,7 +13,7 @@ use std::str::FromStr;
 
 /// Represents a polynomial.
 /// Contains additional data structures to allow for fast variable substitution.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Polynom<C: Coef> {
     /// The module factor.
     m: Mod,
@@ -217,6 +217,13 @@ impl<C: Coef> Polynom<C> {
             }
         }
         r
+    }
+
+    /// Scale all monomials with the given coefficient.
+    pub fn scale(&mut self, coef: &C) {
+        for (_, c) in self.monoms.iter_mut() {
+            c.mul_assign(coef, self.m);
+        }
     }
 }
 
@@ -528,5 +535,13 @@ mod tests {
             Polynom::<u64>::from_str("2*x1 - 2*x2").unwrap().coef_sum(),
             0
         );
+    }
+
+    #[test]
+    fn test_scale() {
+        let mut a = Polynom::<u64>::from_str("2*x1 - 2*x2").unwrap();
+        a.m = Mod::from_bits(8);
+        a.scale(&3);
+        assert_eq!(format!("{a}"), "[6*x1] + [250*x2]");
     }
 }

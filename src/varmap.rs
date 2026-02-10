@@ -8,7 +8,7 @@ use std::num::NonZeroU32;
 /// Maintains one list for each variable with the terms that contain it.
 /// This data structure is our version of the `refList` suggested by
 /// Alexander Konrad and Christoph Scholl in their FastPoly paper (FMCAD'25).
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct VarMap {
     /// Keep track of the list entries that refer to a given term.
     terms: Vec<TermMeta>,
