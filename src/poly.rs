@@ -9,6 +9,7 @@ use rustc_hash::FxBuildHasher;
 use std::cmp::Ordering;
 use std::fmt::{Display, Formatter};
 use std::hash::{Hash, Hasher};
+use std::str::FromStr;
 
 /// Represents a polynomial.
 /// Contains additional data structures to allow for fast variable substitution.
@@ -182,6 +183,32 @@ impl<C: Coef> Polynom<C> {
     }
 }
 
+/// Algebra routines built on core functionality.
+impl<C: Coef> Polynom<C> {
+    /// Adds the `other` polynomial to `self`.
+    pub fn add_assign(&mut self, other: &Self) {
+        assert_eq!(self.m, other.m, "Polynomial mod coefficients must match.");
+        for (term, coef) in other.monoms.iter() {
+            self.add_monom(term.clone(), coef.clone());
+        }
+    }
+
+    /// Creates a new polynomial which is the product of `self` and `other`.
+    pub fn mul(&self, other: &Self) -> Self {
+        assert_eq!(self.m, other.m, "Polynomial mod coefficients must match.");
+        let mut r = Self::new(self.m);
+        for (term_a, coef_a) in self.monoms.iter() {
+            for (term_b, coef_b) in other.monoms.iter() {
+                let term = term_a.mul(term_b);
+                let mut coef = coef_a.clone();
+                coef.mul_assign(coef_b, self.m);
+                r.add_monom(term, coef);
+            }
+        }
+        r
+    }
+}
+
 impl<C: Coef + Display> Display for Polynom<C> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         if self.is_zero() {
@@ -242,6 +269,24 @@ impl Term {
     }
 
     fn replace_var(&self, target: VarIndex, other: &Term) -> Self {
+        self.internal_replace_var(Some(target), other)
+    }
+
+    /// Combines two terms, essentially multiplying them.
+    /// This is very similar to the replace_var method, just that no variable is removed.
+    fn mul(&self, other: &Term) -> Self {
+        if self.vars.is_empty() {
+            return other.clone();
+        }
+        if other.vars.is_empty() {
+            return self.clone();
+        }
+
+        self.internal_replace_var(None, other)
+    }
+
+    // Replace var, but the actual replacing is optional
+    fn internal_replace_var(&self, target: Option<VarIndex>, other: &Term) -> Self {
         debug_assert!(!self.vars.is_empty());
 
         let mut a_iter = self.vars.iter();
@@ -260,7 +305,11 @@ impl Term {
         while a_next.is_some() || b_next.is_some() {
             match (a_next.cloned(), b_next.cloned()) {
                 (Some(a), None) => {
-                    if a != target {
+                    if let Some(tar) = target {
+                        if a != tar {
+                            add_var(a);
+                        }
+                    } else {
                         add_var(a);
                     }
                     a_next = a_iter.next();
@@ -377,6 +426,19 @@ impl Display for Term {
     }
 }
 
+impl<C: Coef> FromStr for Polynom<C> {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let m = C::MAX_MOD;
+        let p = Self::from_monoms(
+            m,
+            crate::parse_poly(s.as_bytes()).map(|(c, t)| (C::from_big(&c, m), t.into())),
+        );
+        Ok(p)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -422,5 +484,30 @@ mod tests {
         p.replace_var(2818.into(), &mons);
         assert_eq!(p.size(), 2);
         assert_eq!(format!("{p}"), "[2*] + [4294967294*x38]");
+    }
+
+    #[test]
+    fn test_add() {
+        let m = Mod::from_bits(8);
+        let mut a = Polynom::<u64>::from_str("2*x1 - 2*x2").unwrap();
+        a.m = m;
+        let mut b = Polynom::<u64>::from_str("254*x1 + 2*x2 + 2*x3").unwrap();
+        b.m = m;
+        a.add_assign(&b);
+        assert_eq!(format!("{a}"), "[2*x3]");
+    }
+
+    #[test]
+    fn test_mul() {
+        let m = Mod::from_bits(8);
+        let mut a = Polynom::<u64>::from_str("2*x1 - 2*x2").unwrap();
+        a.m = m;
+        let mut b = Polynom::<u64>::from_str("254*x1 + 2*x2 + 2*x3").unwrap();
+        b.m = m;
+        let r = a.mul(&b);
+        assert_eq!(
+            format!("{r}"),
+            "[252*x1] + [252*x2] + [8*x1*x2] + [4*x1*x3] + [252*x2*x3]"
+        );
     }
 }
