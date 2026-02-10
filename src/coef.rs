@@ -11,7 +11,7 @@ use std::ops::Shl;
 /// The mod factor that we are using.
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub struct Mod {
-    bytes: u32,
+    bits: u32,
     words: u32,
     msb_mask: Word,
 }
@@ -33,13 +33,6 @@ impl Mod {
 
     #[inline]
     pub const fn from_bits(bits: u32) -> Self {
-        // assert_eq!(bits % 8, 0);
-        Self::from_bytes(bits / 8)
-    }
-
-    #[inline]
-    const fn from_bytes(bytes: u32) -> Self {
-        let bits = 8 * bytes;
         let words = bits.div_ceil(Word::BITS);
         let msb_mask = if bits.is_multiple_of(Word::BITS) {
             Word::MAX
@@ -47,7 +40,7 @@ impl Mod {
             ((1 as Word) << (bits % Word::BITS)) - 1
         };
         Self {
-            bytes,
+            bits,
             words,
             msb_mask,
         }
@@ -55,13 +48,15 @@ impl Mod {
 
     #[inline]
     pub fn bits(&self) -> u32 {
-        self.bytes() * 8
+        self.bits
     }
 
+    /// number of bytes required to represent all bits
     #[inline]
     pub fn bytes(&self) -> u32 {
-        self.bytes
+        self.bits().div_ceil(8)
     }
+
     pub fn factor(&self) -> BigUint {
         BigUint::from(1u32).shl(self.bits() as usize)
     }
@@ -378,6 +373,7 @@ mod tests {
 
     #[test]
     fn test_mod() {
+        do_test_mod("2", 1, 1);
         do_test_mod("4294967296", 32, 4);
         do_test_mod("18446744073709551616", 64, 8);
         do_test_mod("340282366920938463463374607431768211456", 128, 16);
