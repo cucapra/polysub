@@ -200,6 +200,7 @@ impl<const W: usize> ArrayCoef<W> {
         debug_assert!(Self::MAX_BYTES * 8 >= u64::BITS);
         let mut r = Self::zero();
         r.words[0] = v as Word;
+        r.do_mask(m);
         r
     }
 }
