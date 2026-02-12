@@ -141,6 +141,11 @@ impl<C: Coef> Polynom<C> {
         // collect all terms that we are interested in
         let todo: Vec<_> = self.var_map.terms_for_var(target).collect();
 
+        // early exit if variable is not contained in the polynomial
+        if todo.is_empty() {
+            return;
+        }
+
         // generate new terms
         let mut new_terms: Vec<_> = todo
             .iter()
