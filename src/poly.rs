@@ -313,6 +313,7 @@ impl Term {
     }
 
     // Replace var, but the actual replacing is optional
+    #[inline]
     fn internal_replace_var(&self, target: Option<VarIndex>, other: &Term) -> Self {
         debug_assert!(!self.vars.is_empty());
 
@@ -332,11 +333,7 @@ impl Term {
         while a_next.is_some() || b_next.is_some() {
             match (a_next.cloned(), b_next.cloned()) {
                 (Some(a), None) => {
-                    if let Some(tar) = target {
-                        if a != tar {
-                            add_var(a);
-                        }
-                    } else {
+                    if Some(a) != target {
                         add_var(a);
                     }
                     a_next = a_iter.next();
@@ -347,11 +344,16 @@ impl Term {
                 }
                 (Some(a), Some(b)) => match a.cmp(&b) {
                     Ordering::Less => {
-                        add_var(a);
+                        if Some(a) != target {
+                            add_var(a);
+                        }
                         a_next = a_iter.next();
                     }
                     Ordering::Equal => {
-                        add_var(a);
+                        if Some(a) != target {
+                            // this should never be true because it means that the target is part of the replacement
+                            add_var(a);
+                        }
                         a_next = a_iter.next();
                         b_next = b_iter.next();
                     }
@@ -511,6 +513,13 @@ mod tests {
         p.replace_var(2818.into(), &mons);
         assert_eq!(p.size(), 2);
         assert_eq!(format!("{p}"), "[2*] + [4294967294*x38]");
+
+        // there used to be a substitution bug where the old variable would not be
+        // removed if the index was less than the index of the new variable
+        let mons = vec![(Coef::from_i64(-1, m), vec![2818.into()].into())];
+        p.replace_var(38.into(), &mons);
+        assert_eq!(p.size(), 2);
+        assert_eq!(format!("{p}"), "[2*] + [2*x2818]");
     }
 
     #[test]
