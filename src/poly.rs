@@ -387,7 +387,7 @@ impl Term {
     }
 
     #[inline]
-    fn var_count(&self) -> usize {
+    pub fn var_count(&self) -> usize {
         self.vars.len()
     }
 
