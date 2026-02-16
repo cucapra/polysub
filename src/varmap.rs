@@ -128,6 +128,15 @@ impl VarMap {
         }
     }
 
+    /// Returns an iterator over all variables that have at least one term.
+    #[inline]
+    pub fn iter_vars(&self) -> impl Iterator<Item = VarIndex> {
+        self.heads
+            .iter()
+            .enumerate()
+            .flat_map(|(ii, h)| h.map(|_| VarIndex::from(ii as u32)))
+    }
+
     /// Adds a new list entry to the front of the list for the particular variable and returns
     /// the id of the new entry.
     fn add_list_entry(&mut self, var_id: VarIndex, term: TermId) -> EntryId {

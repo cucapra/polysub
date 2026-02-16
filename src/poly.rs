@@ -47,21 +47,25 @@ impl<C: Coef> Polynom<C> {
         p
     }
 
+    #[inline]
     pub fn size(&self) -> usize {
         let size = self.monoms.len() - self.zero_terms.len();
         debug_assert_eq!(self.monoms.values().filter(|c| !c.is_zero()).count(), size);
         size
     }
 
+    #[inline]
     pub fn is_zero(&self) -> bool {
         self.size() == 0
     }
 
+    #[inline]
     pub fn get_mod(&self) -> Mod {
         self.m
     }
 
     /// Currently only allows for increating the mod coefficient!
+    #[inline]
     pub fn change_mod(&mut self, new_m: Mod) {
         if new_m.bits() > self.m.bits() {
             self.m = new_m;
@@ -205,6 +209,66 @@ impl<C: Coef> Polynom<C> {
             r.add_assign(c, self.m);
         }
         r
+    }
+
+    /// An iterator over all unique variables contained in this polynomial.
+    #[inline]
+    pub fn iter_vars(&self) -> impl Iterator<Item = VarIndex> {
+        self.var_map.iter_vars()
+    }
+}
+
+/// Routines to replace specific gate types
+impl<C: Coef> Polynom<C> {
+    pub fn replace_and(&mut self, out: VarIndex, a: VarIndex, b: VarIndex) {
+        // ab
+        let monoms = [(C::from_i64(1, self.get_mod()), vec![a, b].into())];
+        self.replace_var(out, &monoms);
+    }
+
+    pub fn replace_or(&mut self, out: VarIndex, a: VarIndex, b: VarIndex) {
+        // a + b - ab
+        let monoms = [
+            (C::from_i64(1, self.get_mod()), vec![a].into()),
+            (C::from_i64(1, self.get_mod()), vec![b].into()),
+            (C::from_i64(-1, self.get_mod()), vec![a, b].into()),
+        ];
+        self.replace_var(out, &monoms);
+    }
+
+    pub fn replace_xor(&mut self, out: VarIndex, a: VarIndex, b: VarIndex) {
+        // a + b - 2ab
+        let monoms = [
+            (C::from_i64(1, self.get_mod()), vec![a].into()),
+            (C::from_i64(1, self.get_mod()), vec![b].into()),
+            (C::from_i64(-2, self.get_mod()), vec![a, b].into()),
+        ];
+        self.replace_var(out, &monoms);
+    }
+
+    pub fn replace_not(&mut self, out: VarIndex, a: VarIndex) {
+        // 1 - a
+        let monoms = [
+            (C::from_i64(1, self.get_mod()), vec![].into()),
+            (C::from_i64(-1, self.get_mod()), vec![a].into()),
+        ];
+        self.replace_var(out, &monoms);
+    }
+
+    pub fn replace_identity(&mut self, out: VarIndex, a: VarIndex) {
+        // a
+        let monoms = [(C::from_i64(1, self.get_mod()), vec![a].into())];
+        self.replace_var(out, &monoms);
+    }
+
+    pub fn replace_true(&mut self, out: VarIndex) {
+        let monoms = [(C::from_i64(1, self.get_mod()), vec![].into())];
+        self.replace_var(out, &monoms);
+    }
+
+    pub fn replace_false(&mut self, out: VarIndex) {
+        let monoms = [(C::from_i64(0, self.get_mod()), vec![].into())];
+        self.replace_var(out, &monoms);
     }
 }
 
