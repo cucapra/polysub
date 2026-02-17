@@ -14,6 +14,8 @@ struct Args {
     print_step: bool,
     #[arg(long, help = "Print the polynom after every step.")]
     print_poly: bool,
+    #[arg(long, help = "Enable phase optimizations.")]
+    phase_opt: bool,
     #[arg(long)]
     max_steps: Option<u32>,
     #[arg(value_name = "BENCHMARK", index = 1)]
@@ -31,6 +33,7 @@ fn main() {
         args.max_steps,
         args.print_step,
         args.print_poly,
+        args.phase_opt,
     );
     println!("Max. Size was {}", max_poly_size);
     println!("{}", poly);
