@@ -182,6 +182,12 @@ impl<C: Coef> Polynom<C> {
             self.zero_terms.push(old_term_id);
         }
 
+        // early exit, if there are no new terms
+        // this might happen when `mons` contains a coefficient of zero
+        if new_terms.is_empty() {
+            return;
+        }
+
         // sort new terms
         new_terms.sort_by(|(t1, _), (t2, _)| t1.cmp(t2));
 
