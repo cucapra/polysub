@@ -3,7 +3,7 @@
 // author: Kevin Laeufer <laeufer@cornell.edu>
 
 use crate::{Coef, Mod, Polynom, parse_poly};
-use num_bigint::{BigInt, BigUint};
+use num_bigint::BigUint;
 use num_traits::Num;
 use std::fmt::Display;
 use std::io::BufRead;
@@ -40,7 +40,7 @@ pub fn exec_benchmark<C: Coef + Display>(
             2 => {
                 let p = Polynom::from_monoms(
                     m,
-                    parse_poly(line.as_bytes()).map(|(c, t)| (Coef::from_big(&c, m), t.into())),
+                    parse_poly(line.as_bytes()).map(|(c, t)| (c.into_coef(m), t.into())),
                 );
                 max_poly_size = p.size();
                 poly = Some(p);
@@ -57,14 +57,14 @@ pub fn exec_benchmark<C: Coef + Display>(
                 // parse line
                 let mut monom_iter = parse_poly(line.as_bytes());
                 let (first_coef, sub_var) = monom_iter.next().unwrap();
-                assert_eq!(first_coef, BigInt::from(-1));
+                assert_eq!(first_coef.as_i64(), Some(-1));
                 assert_eq!(sub_var.len(), 1);
                 let sub_var = sub_var[0];
                 let poly = poly.as_mut().unwrap();
                 poly.replace_var(
                     sub_var,
                     &monom_iter
-                        .map(|(c, t)| (Coef::from_big(&c, m), t.into()))
+                        .map(|(c, t)| (c.into_coef(m), t.into()))
                         .collect::<Vec<_>>(),
                 );
                 max_poly_size = std::cmp::max(max_poly_size, poly.size());

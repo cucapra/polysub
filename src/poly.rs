@@ -531,7 +531,7 @@ impl<C: Coef> FromStr for Polynom<C> {
         let m = C::MAX_MOD;
         let p = Self::from_monoms(
             m,
-            crate::parse_poly(s.as_bytes()).map(|(c, t)| (C::from_big(&c, m), t.into())),
+            crate::parse_poly(s.as_bytes()).map(|(c, t)| (c.into_coef(m), t.into())),
         );
         Ok(p)
     }

@@ -41,11 +41,19 @@ fn parse_line(line: &str) -> LineContent {
         LineContent::CurrentStep(step, poly_size)
     } else if line.starts_with('[') {
         let poly: Vec<_> = parse_poly(line.as_bytes())
-            .map(|(coef, vars)| (coef, vars.into()))
+            .map(|(coef, vars)| (int_coef_to_big(coef), vars.into()))
             .collect();
         LineContent::Polynom(poly)
     } else {
         todo!("{line}")
+    }
+}
+
+fn int_coef_to_big(c: IntCoef) -> BigInt {
+    use num_traits::cast::FromPrimitive;
+    match c {
+        IntCoef::I64(v) => BigInt::from_i64(v).unwrap(),
+        IntCoef::Big(v) => v,
     }
 }
 
