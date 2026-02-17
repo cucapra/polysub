@@ -156,11 +156,14 @@ impl<C: Coef> Polynom<C> {
             .flat_map(|&old_term_id| {
                 let (old_term, old_coef) = self.monoms.get_index(old_term_id.into()).unwrap();
                 let m = self.m;
-                mons.iter().map(move |(new_coef, new_term)| {
-                    debug_assert!(!new_coef.is_zero());
-                    let mut combined_coef = old_coef.clone();
-                    combined_coef.mul_assign(new_coef, m);
-                    (old_term.replace_var(target, new_term), combined_coef)
+                mons.iter().flat_map(move |(new_coef, new_term)| {
+                    if new_coef.is_zero() {
+                        None
+                    } else {
+                        let mut combined_coef = old_coef.clone();
+                        combined_coef.mul_assign(new_coef, m);
+                        Some((old_term.replace_var(target, new_term), combined_coef))
+                    }
                 })
             })
             .collect();
