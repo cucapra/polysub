@@ -195,10 +195,17 @@ impl<const W: usize> ArrayCoef<W> {
     }
 
     #[inline]
-    fn from_u64(v: u64, m: Mod) -> Self {
+    fn ones() -> Self {
+        Self {
+            words: [Word::MAX; W],
+        }
+    }
+
+    #[inline]
+    fn from_u64(v: u64, m: Mod, negative: bool) -> Self {
         debug_assert!(m.bytes() <= Self::MAX_BYTES);
         debug_assert!(Self::MAX_BYTES * 8 >= u64::BITS);
-        let mut r = Self::zero();
+        let mut r = if negative { Self::ones() } else { Self::zero() };
         r.words[0] = v as Word;
         r.do_mask(m);
         r
@@ -217,7 +224,7 @@ impl<const W: usize> Coef for ArrayCoef<W> {
 
     #[inline]
     fn from_i64(v: i64, m: Mod) -> Self {
-        Self::from_u64(v as u64, m)
+        Self::from_u64(v as u64, m, v < 0)
     }
 
     fn pow2(e: u32, m: Mod) -> Self {
@@ -401,8 +408,8 @@ mod tests {
     #[test]
     fn test_simple_coef_mod_64_bits_1_word() {
         let m = Mod::from_bits(64);
-        let mut a = ArrayCoef::<1>::from_u64(2, m);
-        let b = ArrayCoef::<1>::from_u64(1u64 << 63, m);
+        let mut a = ArrayCoef::<1>::from_u64(2, m, false);
+        let b = ArrayCoef::<1>::from_u64(1u64 << 63, m, false);
         a.mul_assign(&b, m);
         assert!(a.is_zero(), "{a:?}");
     }
@@ -419,8 +426,8 @@ mod tests {
     #[test]
     fn test_simple_coef_mod_64_bits_2_word() {
         let m = Mod::from_bits(64);
-        let mut a = ArrayCoef::<2>::from_u64(2, m);
-        let b = ArrayCoef::<2>::from_u64(1u64 << 63, m);
+        let mut a = ArrayCoef::<2>::from_u64(2, m, false);
+        let b = ArrayCoef::<2>::from_u64(1u64 << 63, m, false);
         a.mul_assign(&b, m);
         assert!(a.is_zero());
     }
@@ -430,7 +437,7 @@ mod tests {
         let m = Mod::from_bits(128);
         let mut a = ArrayCoef::<2>::from_big(&BigInt::from_str_radix("-1", 10).unwrap(), m);
         let old_a = a.clone();
-        let one = ArrayCoef::<2>::from_u64(1, m);
+        let one = ArrayCoef::<2>::from_u64(1, m, false);
         a.add_assign(&one, m);
         assert!(a.is_zero(), "{old_a} + {one} = {a}");
     }
@@ -449,7 +456,7 @@ mod tests {
     fn test_mul_256() {
         let m = Mod::from_bits(256);
         let a = ArrayCoef::<4>::from_words(&[0, 0xff << (Word::BITS - 8), 0, 0], m);
-        let b = ArrayCoef::<4>::from_u64(2, m);
+        let b = ArrayCoef::<4>::from_u64(2, m, false);
         let expect = ArrayCoef::<4>::from_words(&[0, 0xfe << (Word::BITS - 8), 1, 0], m);
         let mut res = a.clone();
         res.mul_assign(&b, m);
@@ -458,5 +465,18 @@ mod tests {
         let mut res2 = b.clone();
         res2.mul_assign(&a, m);
         assert_eq!(res2, expect);
+    }
+
+    #[test]
+    fn test_from_i64_sign_extension() {
+        let m = Mod::from_words(1);
+        let c = u64::from_i64(-1, m);
+        assert_eq!(c, u64::MAX);
+        let m = Mod::from_words(2);
+        let c = u128::from_i64(-1, m);
+        assert_eq!(c, u128::MAX);
+        let m = Mod::from_words(4);
+        let c = ArrayCoef::<4>::from_i64(-1, m);
+        assert_eq!(c.words, [Word::MAX; 4]);
     }
 }
