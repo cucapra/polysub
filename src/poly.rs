@@ -386,6 +386,13 @@ impl Term {
     fn internal_replace_var(&self, target: Option<VarIndex>, other: &Term) -> Self {
         debug_assert!(!self.vars.is_empty());
 
+        // are we replacing one variable with a term that just consists of itself?
+        if let [o] = other.vars.as_slice()
+            && Some(*o) == target
+        {
+            return self.clone();
+        }
+
         let mut a_iter = self.vars.iter();
         let mut b_iter = other.vars.iter();
         let mut a_next = a_iter.next();
@@ -419,10 +426,7 @@ impl Term {
                         a_next = a_iter.next();
                     }
                     Ordering::Equal => {
-                        if Some(a) != target {
-                            // this should never be true because it means that the target is part of the replacement
-                            add_var(a);
-                        }
+                        add_var(a);
                         a_next = a_iter.next();
                         b_next = b_iter.next();
                     }
@@ -552,6 +556,20 @@ mod tests {
         assert_eq!(t1, t2);
         let one = Term::new(vec![]);
         assert_eq!(format!("{one}"), "");
+    }
+
+    #[test]
+    fn test_term_replace_var() {
+        // terms should allow a replacement where the same variable that is being replaced is re-introduced
+        let t1 = Term::new(vec![1.into(), 2.into()]);
+        let t2 = Term::new(vec![1.into(), 3.into()]);
+        let replaced = t1.replace_var(1.into(), &t2);
+        assert_eq!(format!("{replaced}"), "x1*x2*x3");
+
+        // if the variable is substituted with itself, we should employ a faster version
+        let t3 = Term::new(vec![1.into()]);
+        let replaced = t1.replace_var(1.into(), &t3);
+        assert_eq!(t1, replaced);
     }
 
     #[test]
