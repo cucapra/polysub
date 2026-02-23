@@ -74,10 +74,13 @@ impl<C: Coef> Polynom<C> {
         }
     }
 
+    pub fn monoms(&self) -> impl Iterator<Item = (&Term, &C)> {
+        self.monoms.iter()
+    }
+
     pub fn sorted_monom_vec(&self) -> Vec<(C, Term)> {
         let mut r: Vec<_> = self
-            .monoms
-            .iter()
+            .monoms()
             .filter(|(_, c)| !c.is_zero())
             .map(|(value, key)| (key.clone(), value.clone()))
             .collect();
@@ -142,6 +145,15 @@ impl<C: Coef> Polynom<C> {
     }
 
     pub fn replace_var(&mut self, target: VarIndex, mons: &[(C, Term)]) {
+        self.replace_var_with_filter(target, mons, |_| true)
+    }
+
+    pub fn replace_var_with_filter(
+        &mut self,
+        target: VarIndex,
+        mons: &[(C, Term)],
+        mut filter: impl FnMut(&Term) -> bool,
+    ) {
         // collect all terms that we are interested in
         let todo: Vec<_> = self.var_map.terms_for_var(target).collect();
 
@@ -182,14 +194,18 @@ impl<C: Coef> Polynom<C> {
             self.zero_terms.push(old_term_id);
         }
 
-        // early exit, if there are no new terms
-        // this might happen when `mons` contains a coefficient of zero
+        // sort new terms
+        new_terms.sort_by(|(t1, _), (t2, _)| t1.cmp(t2));
+
+        // remove new terms with user-provided filter
+        new_terms.retain(|(t, _)| filter(t));
+
+        // early exit, if there are no new terms, this might happen if:
+        // - `mons` contains a coefficient of zero
+        // - the user-provided filter removed all new terms
         if new_terms.is_empty() {
             return;
         }
-
-        // sort new terms
-        new_terms.sort_by(|(t1, _), (t2, _)| t1.cmp(t2));
 
         // apply new terms
         let mut new_term_iter = new_terms.into_iter();
