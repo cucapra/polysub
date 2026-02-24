@@ -357,8 +357,16 @@ impl<C: Coef> Polynom<C> {
 
     /// Scale all monomials with the given coefficient.
     pub fn scale(&mut self, coef: &C) {
-        for (_, c) in self.monoms.iter_mut() {
+        for (index, (term, c)) in self.monoms.iter_mut().enumerate() {
             c.mul_assign(coef, self.m);
+            if c.is_zero() {
+                // remove monomial if it becomes zero
+                let term_id: TermId = index.into();
+                // remove from the var map
+                self.var_map.remove_term(term, term_id);
+                // remember the id so that the slot can get re-used
+                self.zero_terms.push(term_id);
+            }
         }
     }
 }
@@ -717,6 +725,15 @@ mod tests {
         a.m = Mod::from_bits(8);
         a.scale(&3);
         assert_eq!(format!("{a}"), "[6*x1] + [250*x2]");
+
+        // in this example, the size of the polynomial changes, because the factor makes one
+        // of the coefficients zero, because of modulo calculations
+        let mut a =
+            Polynom::<u64>::from_str("[1*x5*x6*x7] + [1*x5*x7*x8] + [2*x5*x6*x7*x8]").unwrap();
+        a.m = Mod::from_bits(2);
+        let minus_2 = Coef::from_i64(-2, a.m);
+        a.scale(&minus_2);
+        assert_eq!(format!("{a}"), "[2*x5*x6*x7] + [2*x5*x7*x8]");
     }
 
     #[test]
