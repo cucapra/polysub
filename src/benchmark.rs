@@ -15,6 +15,7 @@ pub fn exec_benchmark<C: Coef + Display>(
     print_step: bool,
     print_poly: bool,
     phase_opt: bool,
+    test_mode: bool, // sacrifices performance for better testing
 ) -> (Polynom<C>, usize) {
     let mut line_count = 0u32;
     let mut max_poly_size = 0;
@@ -116,7 +117,7 @@ pub fn exec_benchmark<C: Coef + Display>(
                         Gate::Id(a) => p.replace_identity(var, a),
                         Gate::Input => {} // nothing to do
                     }
-                    perform_phase_opt(p, gate);
+                    perform_phase_opt(p, gate, test_mode);
 
                     // update and print statistics
                     max_poly_size = std::cmp::max(max_poly_size, p.size());
@@ -138,12 +139,23 @@ pub fn exec_benchmark<C: Coef + Display>(
     }
 }
 
-fn perform_phase_opt<C: Coef + Display>(p: &mut PhaseOptPolynom<C>, gate: Gate) {
+fn perform_phase_opt<C: Coef + Display>(p: &mut PhaseOptPolynom<C>, gate: Gate, test: bool) {
     for var in gate.vars() {
-        let prev_size = p.size();
-        p.invert(var);
-        if p.size() > prev_size {
+        if test {
+            // in test mode, we use both the prediction and actually applying the inversion
+            // in order to test the prediction function
+            let prev_size = p.size();
+            let predicted = p.invert_size_change(var);
             p.invert(var);
+            let actual = p.size() as isize - prev_size as isize;
+            assert_eq!(predicted, actual);
+            if p.size() > prev_size {
+                p.invert(var);
+            }
+        } else {
+            if p.invert_size_change(var) < 0 {
+                p.invert(var);
+            }
         }
     }
 }

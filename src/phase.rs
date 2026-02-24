@@ -73,6 +73,32 @@ impl<C: Coef> PhaseOptPolynom<C> {
         self.inner.replace_var(var, &monoms);
         self.inverted.toggle(var.into());
     }
+
+    /// Calculates how much the size of the polynomial would change if `var` was inverted.
+    pub fn invert_size_change(&self, var: VarIndex) -> isize {
+        // inversion means: var = 1 - var
+        // - the -var never leads to canceled monomials since the term does not change and
+        //   terms are unique
+        // - the 1 can lead to either an increase or a decrease in the number of monomials
+        //   depending on whether things cancel or not
+        let mut new_terms = 0;
+        let mut canceled = 0;
+        for (term, coef) in self.inner.monoms_for_var(var) {
+            let term_without_var = term.without_var(var);
+            if let Some(coef_without_var) = self.inner.get_coef(&term_without_var) {
+                let mut sum = coef.clone();
+                sum.add_assign(coef_without_var, self.get_mod());
+                if sum.is_zero() {
+                    canceled += 1;
+                } else {
+                }
+            } else {
+                new_terms += 1;
+            }
+        }
+
+        new_terms - canceled
+    }
 }
 
 /// Routines to replace specific gate types

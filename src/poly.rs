@@ -148,6 +148,19 @@ impl<C: Coef> Polynom<C> {
         self.replace_var_with_filter(target, mons, |_| true)
     }
 
+    pub(crate) fn monoms_for_var(&self, target: VarIndex) -> impl Iterator<Item = (&Term, &C)> {
+        self.var_map
+            .terms_for_var(target)
+            .map(|id| self.monoms.get_index(id.into()).unwrap())
+    }
+
+    pub(crate) fn get_coef(&self, term: &Term) -> Option<&C> {
+        // zero coefficient essentially means that the monom does not exist and thus we do not return it
+        self.monoms
+            .get(term)
+            .and_then(|c| if c.is_zero() { None } else { Some(c) })
+    }
+
     pub fn replace_var_with_filter(
         &mut self,
         target: VarIndex,
@@ -471,6 +484,13 @@ impl Term {
         );
 
         // note: do not call `new` here to avoid unnecessary sort and re-calculation of sum.
+        Self { vars, sum }
+    }
+
+    pub fn without_var(&self, var: VarIndex) -> Self {
+        let mut vars = self.vars.clone();
+        vars.retain(|v| *v != var);
+        let sum = self.sum - var.0;
         Self { vars, sum }
     }
 

@@ -18,7 +18,7 @@ fn full_adder_example() {
             -1*x5+1*x1*x2
             -1*x4-2*x1*x2+1*x1+1*x2
         ";
-    let (poly, _max_poly_size) = exec_benchmark::<DefaultCoef>(inp, None, true, false, false);
+    let (poly, _max_poly_size) = exec_benchmark::<DefaultCoef>(inp, None, true, false, false, true);
     assert_eq!(format!("{}", poly), "[1*x1] + [1*x2] + [1*x3]");
 }
 
@@ -30,7 +30,7 @@ fn test_benchmark(
 ) {
     let content = std::fs::read_to_string(filename).expect("failed to read benchmark file");
     let (poly, max_poly_size) =
-        exec_benchmark::<DefaultCoef>(content.as_bytes(), max_steps, false, false, phase_opt);
+        exec_benchmark::<DefaultCoef>(content.as_bytes(), max_steps, false, false, phase_opt, true);
     assert!(
         poly.is_zero(),
         "Result should be an zero polynomial. Instead we get: {}",

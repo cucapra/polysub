@@ -34,6 +34,7 @@ fn main() {
         args.print_step,
         args.print_poly,
         args.phase_opt,
+        false,
     );
     println!("Max. Size was {}", max_poly_size);
     println!("{}", poly);
