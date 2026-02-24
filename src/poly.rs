@@ -238,6 +238,26 @@ impl<C: Coef> Polynom<C> {
         self.add_monom(term, coef);
     }
 
+    pub fn retain(&mut self, mut predicate: impl FnMut(&Term, &C) -> bool) {
+        let to_remove: Vec<_> = self
+            .monoms
+            .iter()
+            .enumerate()
+            .filter(|(_, (t, c))| predicate(t, c))
+            .map(|(ii, _)| TermId::from(ii))
+            .collect();
+        for term_id in to_remove {
+            let (term, coef) = self.monoms.get_index_mut(term_id.into()).unwrap();
+            // assign coefficient to zero
+            coef.assign_zero();
+            // remove from the var map
+            self.var_map.remove_term(term, term_id);
+            // remember the id so that the slot can get re-used
+            self.zero_terms.push(term_id);
+            // note: the actual term stays in the hash map in order to keep TermIds stable
+        }
+    }
+
     /// The sum (modulo M) across all coefficient of the polynomial.
     /// Since we are in the digital domain this is the maximum value the polynomial could ever
     /// evaluate to.
@@ -494,6 +514,10 @@ impl Term {
         Self { vars, sum }
     }
 
+    pub fn contains(&self, var: VarIndex) -> bool {
+        self.vars.binary_search(&var).is_ok()
+    }
+
     #[inline]
     fn sum(&self) -> u32 {
         self.sum
@@ -693,5 +717,17 @@ mod tests {
         a.m = Mod::from_bits(8);
         a.scale(&3);
         assert_eq!(format!("{a}"), "[6*x1] + [250*x2]");
+    }
+
+    #[test]
+    fn test_retain() {
+        let mut p = Polynom::<u64>::from_str("254*x1 + 2*x2 + 2*x3").unwrap();
+        let x2: VarIndex = 2.into();
+        p.retain(|t, _| t.contains(x2));
+        assert_eq!(format!("{p}"), "[254*x1] + [2*x3]");
+
+        let mut p = Polynom::<u64>::from_str("254*x1 + 2*x2 + 2*x3").unwrap();
+        p.retain(|_, c| *c == 2);
+        assert_eq!(format!("{p}"), "[254*x1]");
     }
 }
