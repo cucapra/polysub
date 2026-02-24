@@ -9,22 +9,27 @@ import tempfile
 import os
 import math
 import glob
+import itertools
 from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 BENCHMARKS = glob.glob(f"{SCRIPT_DIR}/benchmarks/*_steps")
 MAX_WORKERS = max(1, multiprocessing.cpu_count() // 2)
+FLAGS = [("", "", set()), ("(PO)", "--phase-opt", {"b04", "b05", "b09", "b10"})]
 
 
-def run_hyperfine(benchmark: str):
+def run_hyperfine(name: str, benchmark: str, flags: str):
     with tempfile.NamedTemporaryFile(delete=True, suffix=".json") as tmp:
         json_path = tmp.name
 
         hf_cmd = [
             "hyperfine",
+            "--warmup",
+            "2",
+            "-N",
             "--export-json",
             json_path,
-            f"./target/release/examples/bench {benchmark}",
+            f"./target/release/examples/bench {benchmark} {flags}",
         ]
 
         result = subprocess.run(hf_cmd, capture_output=True, text=True, check=False)
@@ -41,7 +46,7 @@ def run_hyperfine(benchmark: str):
         mean = entry["mean"]
         stddev = entry["stddev"]
 
-        return benchmark, mean, stddev
+        return name, mean, stddev
 
 
 def main():
@@ -56,10 +61,17 @@ def main():
         shell=False,
     )
 
-    with concurrent.futures.ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
-        future_to_cmd = {executor.submit(run_hyperfine, bb): bb for bb in BENCHMARKS}
+    # generate all runs
+    runs = [
+        (f"{Path(bb).name} {s}", bb, f)
+        for bb, (s, f, skip) in itertools.product(BENCHMARKS, FLAGS)
+        if Path(bb).name[:3] not in skip
+    ]
 
-        for future in concurrent.futures.as_completed(future_to_cmd):
+    with concurrent.futures.ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+        futures = [executor.submit(run_hyperfine, *args) for args in runs]
+
+        for future in concurrent.futures.as_completed(futures):
             results.append(future.result())
 
     # Print table header
@@ -71,7 +83,6 @@ def main():
 
     # Print table rows
     for bb, mean, stddev in results:
-        bb = Path(bb).name
         print(f"{bb:<60} {mean:>12.6f} {stddev:>12.6f} ")
 
 
